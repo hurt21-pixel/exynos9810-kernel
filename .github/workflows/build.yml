@@ -1,25 +1,49 @@
+name: Build KernelSU Next
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm
+
       - name: Integrasi KernelSU Next
         run: |
-          # Menggunakan command manual agar lebih stabil
-          git clone https://github.com/rifsxd/KernelSU-Next
-          cd KernelSU-Next
-          # Menjalankan script setup dari folder hasil clone
-          KSU_NEXT_VERSION=$(git describe --abbrev=0 --tags)
-          cd ..
-          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/${KSU_NEXT_VERSION}/kernel/setup.sh" | bash -
+          # Mengambil script setup langsung dari branch main KernelSU-Next
+          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/main/kernel/setup.sh" | bash -s main
           
-          # Mengaktifkan config yang dibutuhkan
-          echo "CONFIG_KPROBES=y" >> arch/arm64/configs/exynos9810-starlte_defconfig
-          echo "CONFIG_KPROBE_EVENTS=y" >> arch/arm64/configs/exynos9810-starlte_defconfig
-          echo "CONFIG_OVERLAY_FS=y" >> arch/arm64/configs/exynos9810-starlte_defconfig
+          # Mengaktifkan konfigurasi wajib KernelSU
+          # Kita masukkan ke semua kemungkinan nama defconfig agar aman
+          for config in arch/arm64/configs/exynos9810-starlte_defconfig arch/arm64/configs/universal9810_defconfig; do
+            if [ -f "$config" ]; then
+              echo "Patching $config..."
+              echo "CONFIG_KPROBES=y" >> "$config"
+              echo "CONFIG_KPROBE_EVENTS=y" >> "$config"
+              echo "CONFIG_OVERLAY_FS=y" >> "$config"
+            fi
+          done
 
       - name: Build Kernel
         run: |
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          # Sesuaikan dengan nama defconfig di repo mrcxlinux
-          make O=out exynos9810-starlte_defconfig
-          make -j$(nproc) O=out CC=clang
+          
+          # Mencari file defconfig yang tersedia
+          if [ -f arch/arm64/configs/exynos9810-starlte_defconfig ]; then
+            CONF=exynos9810-starlte_defconfig
+          else
+            CONF=universal9810_defconfig
+          fi
+          
+          make O=out $CONF
+          make -j$(nproc) O=out CC=clang CROSS_COMPILE=aarch64-linux-gnu- HOSTCC=clang
 
       - name: Upload Hasil
         uses: actions/upload-artifact@v4
