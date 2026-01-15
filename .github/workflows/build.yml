@@ -1,4 +1,4 @@
-name: Build KernelSU Next
+name: Build KernelSU Original
 on:
   workflow_dispatch:
 
@@ -14,40 +14,39 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm
 
-      - name: Integrasi KernelSU Next
+      - name: Integrasi KernelSU Original
         run: |
-          # Mengambil script setup langsung dari branch main KernelSU-Next
-          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/main/kernel/setup.sh" | bash -s main
+          # Menggunakan script resmi KernelSU Original
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
           
-          # Mengaktifkan konfigurasi wajib KernelSU
-          # Kita masukkan ke semua kemungkinan nama defconfig agar aman
-          for config in arch/arm64/configs/exynos9810-starlte_defconfig arch/arm64/configs/universal9810_defconfig; do
-            if [ -f "$config" ]; then
-              echo "Patching $config..."
-              echo "CONFIG_KPROBES=y" >> "$config"
-              echo "CONFIG_KPROBE_EVENTS=y" >> "$config"
-              echo "CONFIG_OVERLAY_FS=y" >> "$config"
-            fi
-          done
+          # Paksa aktifkan config di semua file defconfig yang mungkin
+          find arch/arm64/configs/ -name "*defconfig" -type f -exec sh -c '
+            echo "CONFIG_KPROBES=y" >> "$1"
+            echo "CONFIG_KPROBE_EVENTS=y" >> "$1"
+            echo "CONFIG_OVERLAY_FS=y" >> "$1"
+          ' -- {} \;
 
       - name: Build Kernel
         run: |
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # Mencari file defconfig yang tersedia
+          # Mencari defconfig S9 (starlte) atau universal9810
           if [ -f arch/arm64/configs/exynos9810-starlte_defconfig ]; then
             CONF=exynos9810-starlte_defconfig
-          else
+          elif [ -f arch/arm64/configs/universal9810_defconfig ]; then
             CONF=universal9810_defconfig
+          else
+            CONF=$(ls arch/arm64/configs/ | grep -i "defconfig" | head -n 1)
           fi
           
+          echo "Menggunakan config: $CONF"
           make O=out $CONF
           make -j$(nproc) O=out CC=clang CROSS_COMPILE=aarch64-linux-gnu- HOSTCC=clang
 
       - name: Upload Hasil
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-S9-KSU-Next
+          name: Kernel-S9-KSU-Original
           path: out/arch/arm64/boot/Image.gz-dtb
           
