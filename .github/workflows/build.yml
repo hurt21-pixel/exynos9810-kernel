@@ -1,4 +1,4 @@
-name: Build Kernel S9 - Final Fix Attempt
+name: Build Kernel S9 - Clang 15 Stable
 on:
   workflow_dispatch:
 
@@ -10,19 +10,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hurt21-pixel/Lineageos-android_kernel_samsung_exynos9810
-          ref: lineage-20 # Sudah benar sesuai repo kamu
+          ref: lineage-20 # Sesuai branch di repo fork kamu
 
       - name: Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev lld llvm
 
-      - name: Setup Clang 19
+      - name: Setup Clang 15
         run: |
-          mkdir -p clang-19
-          curl -LSs https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r536225.tar.gz -o clang.tar.gz
-          tar -xzf clang.tar.gz -C clang-19
-          echo "$(pwd)/clang-19/bin" >> $GITHUB_PATH
+          mkdir -p clang-15
+          # Menggunakan prebuilt Clang 15 dari Google
+          curl -LSs https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r450784d.tar.gz -o clang.tar.gz
+          tar -xzf clang.tar.gz -C clang-15
+          echo "$(pwd)/clang-15/bin" >> $GITHUB_PATH
 
       - name: Integrasi KernelSU
         run: |
@@ -37,13 +38,13 @@ jobs:
       - name: Build Kernel
         run: |
           export ARCH=arm64
-          export PATH=$(pwd)/clang-19/bin:$PATH
+          export PATH=$(pwd)/clang-15/bin:$PATH
           
           # Konfigurasi Defconfig
           make O=out exynos9810-starlte_defconfig
+          # Jawab otomatis input agar tidak Aborted
           yes "" | make O=out oldconfig
           
-          # Proses Kompilasi dengan Patch Flag untuk Clang 19
           make -j$(nproc) O=out \
             CC=clang \
             HOSTCC=clang \
@@ -51,12 +52,12 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LD=ld.lld \
-            KCFLAGS="-Wno-error -Wno-implicit-function-declaration -Wno-strict-prototypes" \
+            KCFLAGS="-Wno-error" \
             KCPPFLAGS="-Wno-error"
 
       - name: Upload Hasil
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-S9-Fix-KSU
+          name: Kernel-S9-Clang15-KSU
           path: out/arch/arm64/boot/Image.gz-dtb
           
