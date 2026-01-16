@@ -1,4 +1,4 @@
-name: Build Kernel S9 - My Fork KSU
+name: Build Kernel S9 - Final Lineage 20
 on:
   workflow_dispatch:
 
@@ -9,27 +9,25 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
         with:
-          # Mengambil kode dari repo hasil fork kamu sendiri
           repository: hurt21-pixel/Lineageos-android_kernel_samsung_exynos9810
-          # GANTI 'lineage-18.1' di bawah ini dengan nama branch yang ada di repo kamu (misal: lineage-19.1 atau main)
-          ref: lineage-18.1 
+          ref: lineage-20 # Sesuai dengan branch yang ada di repo kamu
 
       - name: Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev lld llvm
 
-      - name: Setup Clang 19
+      - name: Setup Clang 19 (Google Prebuilt)
         run: |
           mkdir -p clang-19
           curl -LSs https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r536225.tar.gz -o clang.tar.gz
           tar -xzf clang.tar.gz -C clang-19
           echo "$(pwd)/clang-19/bin" >> $GITHUB_PATH
 
-      - name: Integrasi KernelSU
+      - name: Integrasi KernelSU Original
         run: |
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
-          # Pastikan path defconfig benar sesuai folder arch/arm64/configs/ di repo kamu
+          # Aktifkan KSU di defconfig starlte (S9)
           CONF=arch/arm64/configs/exynos9810-starlte_defconfig
           if [ -f $CONF ]; then
             echo "CONFIG_KPROBES=y" >> $CONF
@@ -42,7 +40,7 @@ jobs:
           export ARCH=arm64
           export PATH=$(pwd)/clang-19/bin:$PATH
           
-          # Cek defconfig yang tersedia
+          # Tentukan config
           if [ -f arch/arm64/configs/exynos9810-starlte_defconfig ]; then
             CONF=exynos9810-starlte_defconfig
           else
@@ -50,7 +48,7 @@ jobs:
           fi
           
           make O=out $CONF
-          # Jawab otomatis 'Enter' untuk semua fitur baru agar tidak 'Aborted'
+          # PAKSA ENTER otomatis untuk menjawab fitur baru agar tidak 'Aborted'
           yes "" | make O=out oldconfig
           
           make -j$(nproc) O=out \
@@ -64,6 +62,6 @@ jobs:
       - name: Upload Hasil
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-S9-Fork-KSU
+          name: Kernel-S9-Final-KSU
           path: out/arch/arm64/boot/Image.gz-dtb
           
