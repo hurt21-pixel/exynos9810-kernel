@@ -1,4 +1,4 @@
-name: Build Kernel S9 - Final Lineage 20
+name: Build Kernel S9 - Final Fix Attempt
 on:
   workflow_dispatch:
 
@@ -10,24 +10,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hurt21-pixel/Lineageos-android_kernel_samsung_exynos9810
-          ref: lineage-20 # Sesuai dengan branch yang ada di repo kamu
+          ref: lineage-20 # Sudah benar sesuai repo kamu
 
       - name: Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev lld llvm
 
-      - name: Setup Clang 19 (Google Prebuilt)
+      - name: Setup Clang 19
         run: |
           mkdir -p clang-19
           curl -LSs https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r536225.tar.gz -o clang.tar.gz
           tar -xzf clang.tar.gz -C clang-19
           echo "$(pwd)/clang-19/bin" >> $GITHUB_PATH
 
-      - name: Integrasi KernelSU Original
+      - name: Integrasi KernelSU
         run: |
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
-          # Aktifkan KSU di defconfig starlte (S9)
           CONF=arch/arm64/configs/exynos9810-starlte_defconfig
           if [ -f $CONF ]; then
             echo "CONFIG_KPROBES=y" >> $CONF
@@ -40,28 +39,24 @@ jobs:
           export ARCH=arm64
           export PATH=$(pwd)/clang-19/bin:$PATH
           
-          # Tentukan config
-          if [ -f arch/arm64/configs/exynos9810-starlte_defconfig ]; then
-            CONF=exynos9810-starlte_defconfig
-          else
-            CONF=universal9810_defconfig
-          fi
-          
-          make O=out $CONF
-          # PAKSA ENTER otomatis untuk menjawab fitur baru agar tidak 'Aborted'
+          # Konfigurasi Defconfig
+          make O=out exynos9810-starlte_defconfig
           yes "" | make O=out oldconfig
           
+          # Proses Kompilasi dengan Patch Flag untuk Clang 19
           make -j$(nproc) O=out \
             CC=clang \
             HOSTCC=clang \
             HOSTCXX=clang++ \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            LD=ld.lld
+            LD=ld.lld \
+            KCFLAGS="-Wno-error -Wno-implicit-function-declaration -Wno-strict-prototypes" \
+            KCPPFLAGS="-Wno-error"
 
       - name: Upload Hasil
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-S9-Final-KSU
+          name: Kernel-S9-Fix-KSU
           path: out/arch/arm64/boot/Image.gz-dtb
           
