@@ -1,4 +1,4 @@
-name: Build KernelSU Original
+name: Build Kernel S9 KSU - Clang 19
 on:
   workflow_dispatch:
 
@@ -12,14 +12,22 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm
+          sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev lld llvm
+
+      - name: Setup Clang 19 (Google Prebuilt)
+        run: |
+          mkdir -p clang-19
+          # Download Clang r536225 (setara Clang 19) dari Google AOSP
+          curl -LSs https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r536225.tar.gz -o clang.tar.gz
+          tar -xzf clang.tar.gz -C clang-19
+          echo "$(pwd)/clang-19/bin" >> $GITHUB_PATH
 
       - name: Integrasi KernelSU Original
         run: |
-          # Menggunakan script resmi KernelSU Original
+          # Tarik script official KernelSU
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
           
-          # Paksa aktifkan config di semua file defconfig yang mungkin
+          # Patch otomatis semua defconfig agar KSU aktif
           find arch/arm64/configs/ -name "*defconfig" -type f -exec sh -c '
             echo "CONFIG_KPROBES=y" >> "$1"
             echo "CONFIG_KPROBE_EVENTS=y" >> "$1"
@@ -29,9 +37,10 @@ jobs:
       - name: Build Kernel
         run: |
           export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CLANG_PATH=$(pwd)/clang-19/bin
+          export PATH=$CLANG_PATH:$PATH
           
-          # Mencari defconfig S9 (starlte) atau universal9810
+          # Cari file defconfig yang cocok
           if [ -f arch/arm64/configs/exynos9810-starlte_defconfig ]; then
             CONF=exynos9810-starlte_defconfig
           elif [ -f arch/arm64/configs/universal9810_defconfig ]; then
@@ -40,13 +49,23 @@ jobs:
             CONF=$(ls arch/arm64/configs/ | grep -i "defconfig" | head -n 1)
           fi
           
-          echo "Menggunakan config: $CONF"
+          echo "Memasak dengan config: $CONF"
+          
+          # Buat config dan atur ke default untuk opsi baru
           make O=out $CONF
-          make -j$(nproc) O=out CC=clang CROSS_COMPILE=aarch64-linux-gnu- HOSTCC=clang
+          make O=out olddefconfig
+          
+          # Mulai masak
+          make -j$(nproc) O=out \
+            CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            HOSTCC=clang \
+            HOSTCXX=clang++
 
       - name: Upload Hasil
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-S9-KSU-Original
+          name: Kernel-S9-KSU-Final
           path: out/arch/arm64/boot/Image.gz-dtb
           
